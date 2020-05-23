@@ -5,7 +5,13 @@ from django.contrib.auth import get_user_model
 from django.test import RequestFactory, testcases
 
 from graphene_django.views import GraphQLView
-from graphql.execution.base import ResolveInfo
+
+try:
+    # Try graphql-core-3 import
+    from graphql.type import GraphQLResolveInfo as ResolveInfo
+except:
+    # Fallback to graphql-core-2
+    from graphql.execution.base import ResolveInfo
 
 from graphql_jwt.decorators import jwt_cookie
 from graphql_jwt.settings import jwt_settings
@@ -14,16 +20,13 @@ from graphql_jwt.utils import jwt_encode, jwt_payload
 
 
 class UserTestCase(testcases.TestCase):
-
     def setUp(self):
         self.user = get_user_model().objects.create_user(
-            username='test',
-            password='dolphins',
+            username="test", password="dolphins",
         )
 
 
 class TestCase(UserTestCase):
-
     def setUp(self):
         super().setUp()
         self.payload = jwt_payload(self.user)
@@ -31,12 +34,12 @@ class TestCase(UserTestCase):
         self.request_factory = RequestFactory()
 
     def info(self, user=None, **headers):
-        request = self.request_factory.post('/', **headers)
+        request = self.request_factory.post("/", **headers)
 
         if user is not None:
             request.user = user
 
-        return mock.Mock(context=request, path=['test'], spec=ResolveInfo)
+        return mock.Mock(context=request, path=["test"], spec=ResolveInfo)
 
 
 class SchemaTestCase(TestCase, JSONWebTokenTestCase):
@@ -48,7 +51,7 @@ class SchemaTestCase(TestCase, JSONWebTokenTestCase):
         self.client.schema(query=self.Query, mutation=self.Mutation)
 
     def execute(self, variables=None):
-        assert self.query, ('`query` property not specified')
+        assert self.query, "`query` property not specified"
         return self.client.execute(self.query, variables)
 
     def assertUsernameIn(self, payload):
@@ -57,31 +60,29 @@ class SchemaTestCase(TestCase, JSONWebTokenTestCase):
 
 
 class RelaySchemaTestCase(SchemaTestCase):
-
     def execute(self, variables=None):
-        return super().execute({'input': variables})
+        return super().execute({"input": variables})
 
 
 class CookieClient(JSONWebTokenClient):
-
     def post(self, path, data, **kwargs):
-        kwargs.setdefault('content_type', 'application/json')
-        return self.generic('POST', path, json.dumps(data), **kwargs)
+        kwargs.setdefault("content_type", "application/json")
+        return self.generic("POST", path, json.dumps(data), **kwargs)
 
     def set_cookie(self, token):
         self.cookies[jwt_settings.JWT_COOKIE_NAME] = token
 
     def execute(self, query, variables=None, **extra):
         data = {
-            'query': query,
-            'variables': variables,
+            "query": query,
+            "variables": variables,
         }
         view = GraphQLView(schema=self._schema)
-        request = self.post('/', data=data, **extra)
+        request = self.post("/", data=data, **extra)
         response = jwt_cookie(view.dispatch)(request)
         content = self._parse_json(response)
-        response.data = content.get('data')
-        response.errors = content.get('errors')
+        response.data = content.get("data")
+        response.errors = content.get("errors")
         return response
 
 
